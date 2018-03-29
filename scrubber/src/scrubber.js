@@ -126,6 +126,9 @@ var connectDB = function() {
             _client = client;
             return resolve();
         });
+    }).catch(function(err) {
+        console.error(chalk.bold.red(err));
+        process.exit(1);
     });
 }
 
@@ -133,6 +136,7 @@ var connectDB = function() {
 * Drops the ephemeral scrub DB if it exists.
 */
 var dropDB = function() {
+    console.log(chalk.cyan('Dropping DB: ' + SCRUB_DB_NAME));
     return _client.db(SCRUB_DB_NAME)
         .dropDatabase();
 }
@@ -165,7 +169,7 @@ var getDBCollections = function() {
 * Cleans ephemeral scrub DB of all sensitive data.
 */
 var scrubDB = function(collections) {
-    console.log('Scrubbing database: ' + SCRUB_DB_NAME);
+    console.log(chalk.cyan('Scrubbing database: ' + SCRUB_DB_NAME));
 
     /**
      * Get list of sensitive collections.
@@ -173,25 +177,23 @@ var scrubDB = function(collections) {
     var sensitiveCollections = collections.filter(function(collection) {
         return collectionWhitelist.indexOf(collection.collectionName) === -1;
     });
-    console.log('Found ' + sensitiveCollections.length + ' sensitive collections.');
+    console.log(chalk.yellow('Found ' + sensitiveCollections.length + ' sensitive collections.'));
 
-    var promise = Promise.resolve();
+    // var promise = Promise.resolve();
 
-    sensitiveCollections.forEach(function(collection) {
+    return sensitiveCollections.reduce(function(sequence, collection) {
+        return sequence.then(function() {
+            if (indexes.hasOwnProperty(collection.collectionName)) {
 
-        if (indexes.hasOwnProperty(collection.collectionName)) {
-
-            /**
-             * TODO: Need to figure out a better way to deal with overwriting unique indexes.
-             * For now simply dropping the indexes so that an empty string value can be written.
-             */
-            promise.then(function() {
+                /**
+                 * TODO: Need to figure out a better way to deal with overwriting unique indexes.
+                 * For now simply dropping the indexes so that an empty string value can be written.
+                 */
                 return collection.dropIndexes();
-            });
-        }
-
-        promise.then(function(result) {
-
+            } else {
+                return Promise.resolve();
+            }
+        }).then(function() {
             /**
              * Setup filter query for updateMany
              */
@@ -224,12 +226,12 @@ var scrubDB = function(collections) {
             */
             return collection.updateMany(filterQuery, { $set: updateParameters });
         }).then(function(result) {
-            console.log('Found ' + result.matchedCount + ' entries in ' + collection.collectionName +
-            ' with sensitive fields...scrubbed ' + result.modifiedCount + ' entries clean');
+            console.log(chalk.green('Found ' + result.matchedCount + ' entries in ' + collection.collectionName +
+            ' with sensitive fields...scrubbed ' + result.modifiedCount + ' entries clean'));
+            return Promise.resolve();
         });
-    });
+    }, Promise.resolve());
 
-    return promise;
 }
 
 /**
@@ -243,7 +245,7 @@ var closeClient = function() {
 
 var dumpDB = function() {
     return new Promise(function(resolve, reject) {
-        console.log('Dumping ' + SCRUB_DB_NAME + ' to /tmp');
+        console.log(chalk.cyan('Dumping ' + SCRUB_DB_NAME + ' to /tmp'));
 
         var cmd = [
             'mongodump',
@@ -259,7 +261,14 @@ var dumpDB = function() {
                 return reject(err);
             }
 
-            console.log(stdout);
+            if (stdout) {
+                console.log(stdout);
+            }
+
+            if (stderr) {
+                console.log(stderr);
+            }
+
             return resolve();
         });
     });
@@ -280,7 +289,7 @@ module.exports.scrub = function() {
             if (!collections.length) {
                 return Promise.reject('No collections in db: ' + SCRUB_DB_NAME);
             }
-            console.log('Found ' + collections.length + ' collections.');
+            console.log(chalk.cyan('Found ' + collections.length + ' collections.'));
             return scrubDB(collections);
         })
         .then(function() {
@@ -288,10 +297,12 @@ module.exports.scrub = function() {
         })
         .then(function() {
             dropDB().then(closeClient);
+            process.exit(0);
         })
         .catch(function(err) {
-            console.error(err);
+            console.error(chalk.bold.red(err));
             dropDB().then(closeClient);
+            process.exit(1);
         });
 };
 
