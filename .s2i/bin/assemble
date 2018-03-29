@@ -9,6 +9,7 @@ if [ $rc -eq 0 ]; then
     gunzip mongodb-linux-x86_64-3.6.3.tgz
     tar -C /opt -xf mongodb-linux-x86_64-3.6.3.tar
     ln -s /opt/mongodb-linux-x86_64-3.6.3 /opt/mongodb
+    rm mongodb-linux-x86_64-3.6.3.tar
     mkdir /opt/minio
     curl -o /opt/minio/mc https://dl.minio.io/client/mc/release/linux-amd64/mc
     chmod +x /opt/minio/mc
