@@ -1,21 +1,20 @@
 'use strict';
 
-var chalk = require('chalk'),
+const chalk = require('chalk'),
     config = require('./config'),
+    crypto = require('crypto'),
+    exporter = require('./exporter'),
+    importer = require('./importer'),
     MongoClient = require('mongodb').MongoClient,
     spawn = require('child_process');
 
-var MONGO_DB_HOSTNAME = config.db.hostname;
-var MONGO_DB_PORT = config.db.port;
-var MONGO_DB_URL = config.db.uri;
-
-var FROM_DB_NAME = config.db.name;
-var SCRUB_DB_NAME = FROM_DB_NAME + '-scrubbed';
+const DEST_DB_NAME = config.dest.db.name;
+const DEST_DB_URI = config.dest.db.uri;
 
 /**
  * Collections that don't contain sensitive data fields.
  */
-var collectionWhitelist = [
+const collectionWhitelist = [
     'capabilities',
     'capabilityskills',
     'configuration',
@@ -30,7 +29,7 @@ var collectionWhitelist = [
 /**
 * Sensitive data fields.
 */
-var removableFields = {
+const removableFields = {
     'opportunities': [
         'proposalEmail'
     ],
@@ -97,7 +96,7 @@ var removableFields = {
 /**
 * Default field values to use instead of ''.
 */
-var defaults = {
+const defaults = {
     'province': 'BC',
     'businessProvince': 'BC'
 };
@@ -105,29 +104,29 @@ var defaults = {
 /**
 * Collections with indexes that need to be dropped.
 */
-var indexes = {
+const indexes = {
     'users': {
         'email': { unique: true },
         'username': { unique: true }
     }
 };
 
-var _client;
-
 /**
-* Connects to a Mongo DB.
-*/
-var connectDB = function() {
-    return new Promise(function(resolve, reject) {
-        MongoClient.connect(MONGO_DB_URL, function(err, client) {
+ * Connects to a Mongo DB.
+ */
+let _client;
+const connectDB = function() {
+    return new Promise((resolve, reject) => {
+        MongoClient.connect(DEST_DB_URI, (err, client) => {
             if (err) {
                 return reject(err);
             }
             _client = client;
             return resolve();
         });
-    }).catch(function(err) {
-        console.error(chalk.bold.red(err));
+    }).catch(err => {
+        console.error(chalk.bold.red(`Failed to connect to DB ${DEST_DB_NAME}`));
+        console.error(err);
         process.exit(1);
     });
 }
@@ -135,54 +134,35 @@ var connectDB = function() {
 /**
 * Drops the ephemeral scrub DB if it exists.
 */
-var dropDB = function() {
-    console.log(chalk.cyan('Dropping DB: ' + SCRUB_DB_NAME));
-    return _client.db(SCRUB_DB_NAME)
+const dropDB = function() {
+    console.log(chalk.yellow(`Dropping DB: ${DEST_DB_NAME}'`));
+    return _client.db(DEST_DB_NAME)
         .dropDatabase();
-}
-
-/**
-* Copies connected Mongo DB to an ephemeral scrub DB.
-*/
-var copyProdDB = function() {
-    var copyCommand = {
-        copydb: 1,
-        fromhost: MONGO_DB_HOSTNAME,
-        fromdb: FROM_DB_NAME,
-        todb: SCRUB_DB_NAME
-    };
-
-    return _client.db(SCRUB_DB_NAME)
-        .admin()
-        .command(copyCommand)
 }
 
 /**
 * Get list of all collections in ephemeral scrub DB.
 */
-var getDBCollections = function() {
-    return _client.db(SCRUB_DB_NAME)
+const getDBCollections = function() {
+    return _client.db(DEST_DB_NAME)
         .collections();
 }
 
 /**
 * Cleans ephemeral scrub DB of all sensitive data.
 */
-var scrubDB = function(collections) {
-    console.log(chalk.cyan('Scrubbing database: ' + SCRUB_DB_NAME));
+const scrubDB = function(collections) {
+    console.log(chalk.cyan(`Scrubbing DB: ${DEST_DB_NAME}`));
 
     /**
      * Get list of sensitive collections.
      */
-    var sensitiveCollections = collections.filter(function(collection) {
-        return collectionWhitelist.indexOf(collection.collectionName) === -1;
-    });
-    console.log(chalk.yellow('Found ' + sensitiveCollections.length + ' sensitive collections.'));
+    const sensitiveCollections = collections
+        .filter(collection => collectionWhitelist.indexOf(collection.collectionName) === -1);
+    console.log(chalk.yellow(`Found ${sensitiveCollections.length} sensitive collections`));
 
-    // var promise = Promise.resolve();
-
-    return sensitiveCollections.reduce(function(sequence, collection) {
-        return sequence.then(function() {
+    return sensitiveCollections.reduce((sequence, collection) => {
+        return sequence.then(() => {
             if (indexes.hasOwnProperty(collection.collectionName)) {
 
                 /**
@@ -193,20 +173,18 @@ var scrubDB = function(collections) {
             } else {
                 return Promise.resolve();
             }
-        }).then(function() {
+        })
+        .then(() => {
             /**
              * Setup filter query for updateMany
              */
-            var existsOrQuery = removableFields[collection.collectionName].map(function(field) {
-                var queryObject = {};
-                queryObject[field] = { $exists: true};
-                return queryObject;
+            const existsOrQuery = removableFields[collection.collectionName].map(field => {
+                return { [field] : { $exists: true} };
             });
 
-            var filterQuery = { $or: existsOrQuery };
-
+            let filterQuery = { $or: existsOrQuery };
             if (collection.collectionName === 'users') {
-                var notQuery = ['admin', 'dev', 'gov', 'user'].map(function(username) {
+                const notQuery = ['admin', 'dev', 'gov', 'user'].map(username => {
                     return { 'username': { $ne: username } };
                 });
                 filterQuery.$and = notQuery;
@@ -215,8 +193,8 @@ var scrubDB = function(collections) {
             /**
              * Setup update obects for updateMany
              */
-            var updateParameters = removableFields[collection.collectionName]
-                .reduce(function(updates, field) {
+            const updateParameters = removableFields[collection.collectionName]
+                .reduce((updates, field) => {
                     updates[field] = defaults[field] || '';
                     return updates;
                 }, {});
@@ -225,10 +203,10 @@ var scrubDB = function(collections) {
             * Attempt updateMany
             */
             return collection.updateMany(filterQuery, { $set: updateParameters });
-        }).then(function(result) {
-            console.log(chalk.green('Found ' + result.matchedCount + ' entries in ' + collection.collectionName +
-            ' with sensitive fields...scrubbed ' + result.modifiedCount + ' entries clean'));
-            return Promise.resolve();
+        }).then(result => {
+            console.log(chalk.green(
+                `Found ${result.matchedCount} entries in ${collection.collectionName} with sensitive fields \
+                ...scrubbed ${result.modifiedCount} entries clean`));
         });
     }, Promise.resolve());
 
@@ -237,71 +215,50 @@ var scrubDB = function(collections) {
 /**
  * Close connected Mongo DB.
  */
-var closeClient = function() {
+const closeClient = function() {
     if (_client) {
-        _client.close();
+        return _client.close();
     }
-}
-
-var dumpDB = function() {
-    return new Promise(function(resolve, reject) {
-        console.log(chalk.cyan('Dumping ' + SCRUB_DB_NAME + ' to /tmp'));
-
-        var cmd = [
-            'mongodump',
-            '--host', MONGO_DB_HOSTNAME,
-            '--port', MONGO_DB_PORT,
-            '--db', SCRUB_DB_NAME,
-            '--out', '/tmp/',
-            '--gzip'
-        ].join(' ');
-
-        spawn.exec(cmd, function(err, stdout, stderr) {
-            if (err) {
-                return reject(err);
-            }
-
-            if (stdout) {
-                console.log(stdout);
-            }
-
-            if (stderr) {
-                console.log(stderr);
-            }
-
-            return resolve();
-        });
-    });
+    return Promise.resolve();
 }
 
 module.exports.scrub = function() {
+    config.dest.db.backup_dirname = config.src.db.backup_dirname;
     return connectDB()
-        .then(function() {
-            return dropDB();
-        })
-        .then(function() {
-            return copyProdDB();
-        })
-        .then(function() {
-            return getDBCollections();
-        })
-        .then(function(collections) {
+        .then(() => dropDB())
+        .then(() => exporter.export(config.src))
+        .then(() => importer.import(config.dest))
+        .then(() => getDBCollections())
+        .then(collections => {
             if (!collections.length) {
-                return Promise.reject('No collections in db: ' + SCRUB_DB_NAME);
+                return Promise.reject(`No collections in db: ${DEST_DB_NAME}`);
             }
-            console.log(chalk.cyan('Found ' + collections.length + ' collections.'));
+            console.log(chalk.cyan(`Found ${collections.length} collections.`));
             return scrubDB(collections);
         })
-        .then(function() {
-            return dumpDB();
+        .then(() => exporter.export(config.dest))
+        .then(() => {
+            return dropDB()
+                .then(() => closeClient())
+                .then(() => process.exit(0));
         })
-        .then(function() {
-            dropDB().then(closeClient);
-            process.exit(0);
-        })
-        .catch(function(err) {
+        .catch(err => {
+            /**
+             * Regular catch if anything fails.
+             * Will attempt to drop the DEST database and close the connection.
+             * Stop the script with an error code.
+             */
             console.error(chalk.bold.red(err));
-            dropDB().then(closeClient);
+            return dropDB()
+                .then(() => closeClient())
+                .then(() => process.exit(1));
+        })
+        .catch(err => {
+            /**
+             * Generic catch if anything fails.
+             * Stop the script immediately with an error code.
+             */
+            console.error(chalk.bold.red(err));
             process.exit(1);
         });
 };

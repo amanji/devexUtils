@@ -2,18 +2,46 @@
 
 A simple Node.js application that will connect to a MongoDB instance, copy a specified DB and scrub it clean of all sensitive information and create a dump of it in `/tmp`.
 
-The following parameters can be provided via ENV variables specifying the DB that should be cleaned.:
+_**WARNING:** The utility will overwrite any existing dump that exists in `/tmp`. It will also overwrite any data that exists in the database copy that is being cleaned if it currently exists._
 
-_NOTE: A copy of the DB will be generated and dropped once it is cleaned and dumped to `/tmp`. The scrubbable DB copy as well as the dump can be identified via the name of the DB being cleaned, post-fixed with '-scrubbed' (Example: 'devex-scrubbed'). The DB dump will overwrite any existing dump that exists in `/tmp`._
+This utility also comes with accompanying modules that can be used in standalone:
+* `exporter.js` - Exports a DB to `/tmp`. _Uses parameters speicied in SRC section below or can be passed a configuration object._
+* `importer.js` - Imports a DB from `/tmp`. _Uses parameters speicied in DEST section below or can be passed a configuration object._
 
-`MONGO_DB_NAME` _defaults to 'devex'_
+This utility requires the following dependencies:
+* Node.js 8+ (preferrably LTS)
+* mongo-tools
 
-`MONGO_DB_HOSTNAME` _defaults to 'localhost'_;
+#### The following parameters should be defined as ENV variables specifying the DB to be scrubbed:
 
-`MONGO_DB_PORT` _defaults to '27017'_;
+### Specify a SRC MongoDB Database:
+
+`SRC_MONGO_DB_NAME` _defaults to 'devex'_ \
+`SRC_MONGO_DB_HOSTNAME` _defaults to 'localhost'_ \
+`SRC_MONGO_DB_PORT` _defaults to '27017'_ \
+`SRC_MONGO_DB_BACKUP_DIRNAME` _defaults to 'devexbackup'_ \
+`SRC_MONGO_DB_USERNAME` _defaults to ''_ \
+`SRC_MONGO_DB_PASSWORD` _defaults to ''_
+
+**IMPORTANT:**
+* `SRC_MONGO_DB_BACKUP_DIRNAME` needs to be the same as the name of the destination database that is being scrubbed.
+* Both `SRC_MONGO_DB_USERNAME` and `SRC_MONGO_DB_PASSWORD` need to be defined if the database requires authentication for connecting to. If either are missing, the script will attempt to connect to the database without authentication credentials.
+* If authentication credentials are defined, the user that the database connects with must have a minimum of `read` permissions on that database.
+
+### Specify a DEST MongoDB Database:
+
+`DEST_MONGO_DB_NAME` _defaults to 'devexbackup'_ \
+`DEST_MONGO_DB_HOSTNAME` _defaults to 'localhost'_ \
+`DEST_MONGO_DB_PORT` _defaults to '27017'_ \
+`DEST_MONGO_DB_USERNAME` _defaults to ''_ \
+`DEST_MONGO_DB_PASSWORD` _defaults to ''_
+
+**IMPORTANT:**
+* Both `DEST_MONGO_DB_USERNAME` and `DEST_MONGO_DB_PASSWORD` need to be defined if the database requires authentication for connecting to. If either are missing, the script will attempt to connect to the database without authentication credentials.
+* If authentication credentials are defined, the user that the database connects with must have a minimum of `readWrite` permissions on that database. It is preferrable for the user to have `dbAdmin` permissions since the script will attempt to drop any temporal or intermediary databases that it may create.
 
 ## Running the application
 
-Run `npm install && npm start` if node modules are not installed,otherwise run `npm start`.
+Run `npm install && npm start` if node modules are not installed, otherwise run `npm start`.
 
 _For correspondence please email akiff.manji@gmail.com. or tag @amanji on GitHub_
