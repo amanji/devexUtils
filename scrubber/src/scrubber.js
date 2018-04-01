@@ -2,11 +2,9 @@
 
 const chalk = require('chalk'),
     config = require('./config'),
-    crypto = require('crypto'),
     exporter = require('./exporter'),
     importer = require('./importer'),
-    MongoClient = require('mongodb').MongoClient,
-    spawn = require('child_process');
+    MongoClient = require('mongodb').MongoClient;
 
 const DEST_DB_NAME = config.dest.db.name;
 const DEST_DB_URI = config.dest.db.uri;
