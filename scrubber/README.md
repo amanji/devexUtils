@@ -1,12 +1,12 @@
 # Mongo DB Scrubber Utility
 
-A simple Node.js application that will connect to a MongoDB instance, copy a specified DB and scrub it clean of all sensitive information and create a dump of it in `/tmp`.
+A simple Node.js application that will connect to a MongoDB instance, copy a specified DB, scrub it clean of all sensitive information and create a dump of it in `/tmp`.
 
 _**WARNING:** The utility will overwrite any existing dump that exists in `/tmp`. It will also overwrite any data that exists in the database copy that is being cleaned if it currently exists._
 
 This utility also comes with accompanying modules that can be used in standalone:
-* `exporter.js` - Exports a DB to `/tmp`. _Uses parameters speicied in SRC section below or can be passed a configuration object._
-* `importer.js` - Imports a DB from `/tmp`. _Uses parameters speicied in DEST section below or can be passed a configuration object._
+* `exporter.js` - Exports a DB to `/tmp`. _Uses parameters specified in SRC section below or can be passed a configuration object._
+* `importer.js` - Imports a DB from `/tmp`. _Uses parameters specified in DEST section below or can be passed a configuration object._
 
 This utility requires the following dependencies:
 * Node.js 8+ (preferrably LTS)
