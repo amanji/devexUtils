@@ -3,6 +3,7 @@
 const chalk = require('chalk'),
     config = require('./config'),
     exporter = require('./exporter'),
+    faker = require('faker'),
     importer = require('./importer'),
     MongoClient = require('mongodb').MongoClient;
 
@@ -25,79 +26,92 @@ const collectionWhitelist = [
 ];
 
 /**
-* Sensitive data fields.
+* Sensitive data fields with replacement functions.
 */
 const removableFields = {
-    'opportunities': [
-        'proposalEmail'
-    ],
-    'orgs': [
-        'name',
-        'dba',
-        'address',
-        'address2',
-        'city',
-        'province',
-        'postalcode',
-        'fullAddress',
-        'contactName',
-        'contactEmail',
-        'contactPhone',
-        'website',
-        'orgImageURL'
-    ],
-    'profiles': [
-        'github',
-        'stackOverflow',
-        'stackExchange',
-        'linkedIn',
-        'website'
-    ],
-    'programs': [
-        'owner'
-    ],
-    'proposals': [
-        'businessName',
-        'businessAddress',
-        'businessContactName',
-        'businessContactEmail',
-        'businessContactPhone'
-    ],
-    'users': [
-        'firstName',
-        'lastName',
-        'displayName',
-        'username',
-        'email',
-        'address',
-        'phone',
-        'businessName',
-        'businessAddress',
-        'businessAddress2',
-        'businessCity',
-        'businessProvince',
-        'businessCode',
-        'businessContactName',
-        'businessContactEmail',
-        'businessContactPhone',
-        // Removed the following since they may contain personal information
-        'profileImageURL',
-        'providerData',
-        'github',
-        'stackOverflow',
-        'stackExchange',
-        'linkedIn',
-        'website'
-    ]
+    'opportunities': () => {
+        return {
+            'proposalEmail': defaultEmail()
+        };
+    },
+    'orgs': () => generateOrgInfo(),
+    'profiles': () => generateOnlineProfileInfo(),
+    'programs': () => {
+        return {
+            'owner': ''
+        };
+    },
+    'proposals': () => generateBusinessInfo(),
+    'users': () => generateUserInfo()
 };
 
-/**
-* Default field values to use instead of ''.
-*/
-const defaults = {
-    'province': 'BC',
-    'businessProvince': 'BC'
+const generateOrgInfo = function() {
+    const address = faker.address.streetAddress();
+    return {
+        'name': faker.company.companyName(),
+        'dba': faker.name.findName(),
+        'address': address,
+        'address2': faker.address.secondaryAddress(),
+        'city': faker.address.city(),
+        'province': 'BC',
+        'postalcode': '1A1 A1A',
+        'fullAddress': address,
+        'contactName': faker.name.findName(),
+        'contactEmail': defaultEmail(),
+        'contactPhone': faker.phone.phoneNumber(),
+        'website': '',
+        'orgImageURL': ''
+    };
 };
+
+const generateOnlineProfileInfo = function() {
+    return {
+        'github': '',
+        'stackOverflow': '',
+        'stackExchange': '',
+        'linkedIn': '',
+        'website': '',
+    };
+}
+
+const generateBusinessInfo = function() {
+    return {
+        'businessName': faker.company.companyName(),
+        'businessAddress': faker.address.streetAddress(),
+        'businessContactName': faker.name.findName(),
+        'businessContactEmail': defaultEmail(),
+        'businessContactPhone': faker.phone.phoneNumber()
+    };
+};
+
+const generateUserInfo = function() {
+    const firstName = faker.name.firstName();
+    const lastName = faker.name.lastName();
+    return Object.assign({
+        'firstName': firstName,
+        'lastName': lastName,
+        'displayName': `${firstName} ${lastName}`,
+        'username': faker.internet.userName(),
+        'email': defaultEmail(),
+        'address': faker.address.streetAddress(),
+        'phone': faker.phone.phoneNumber(),
+        'businessAddress2': faker.address.secondaryAddress(),
+        'businessCity': faker.address.city(),
+        'businessProvince': 'BC',
+        'businessCode': '',
+        'profileImageURL': '',
+        'providerData': ''
+    }, generateBusinessInfo(), generateOnlineProfileInfo());
+};
+
+const defaultEmail = (function() {
+    let count = 0;
+    return function() {
+        const email = `bcdevelopersexchange${count ? '+' + count : ''}@gmail.com`;
+        ++count;
+        return email;
+    };
+})();
 
 /**
 * Collections with indexes that need to be dropped.
@@ -122,7 +136,8 @@ const connectDB = function() {
             _client = client;
             return resolve();
         });
-    }).catch(err => {
+    })
+    .catch(err => {
         console.error(chalk.bold.red(`Failed to connect to DB ${DEST_DB_NAME}`));
         console.error(err);
         process.exit(1);
@@ -173,10 +188,12 @@ const scrubDB = function(collections) {
             }
         })
         .then(() => {
+            const replacements = removableFields[collection.collectionName]() || {};
+            const removableFieldNames = Object.keys(replacements) || [];
             /**
              * Setup filter query for updateMany
              */
-            const existsOrQuery = removableFields[collection.collectionName].map(field => {
+            const existsOrQuery = removableFieldNames.map(field => {
                 return { [field] : { $exists: true} };
             });
 
@@ -191,9 +208,9 @@ const scrubDB = function(collections) {
             /**
              * Setup update obects for updateMany
              */
-            const updateParameters = removableFields[collection.collectionName]
+            const updateParameters = removableFieldNames
                 .reduce((updates, field) => {
-                    updates[field] = defaults[field] || '';
+                    updates[field] = replacements[field] || '';
                     return updates;
                 }, {});
 
