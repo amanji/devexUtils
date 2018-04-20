@@ -7,12 +7,15 @@ rc=$?
 if [ $rc -eq 0 ]; then
     curl -O https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.6.3.tgz
     gunzip mongodb-linux-x86_64-3.6.3.tgz
-    tar -C /opt -xf mongodb-linux-x86_64-3.6.3.tar
-    ln -s /opt/mongodb-linux-x86_64-3.6.3 /opt/mongodb
-    rm mongodb-linux-x86_64-3.6.3.tar
-    mkdir /opt/minio
-    curl -o /opt/minio/mc https://dl.minio.io/client/mc/release/linux-amd64/mc
-    chmod +x /opt/minio/mc
+    tar -C /opt/app-root -xf mongodb-linux-x86_64-3.6.3.tar
+    ln -s /opt/app-root/mongodb-linux-x86_64-3.6.3 /opt/app-root/mongodb
+    ln -s /opt/app-root/mongodb-linux-x86_64-3.6.3/bin /opt/app-root/bin
+    mkdir /opt/app-root/minio
+    curl -o /opt/app-root/minio/mc https://dl.minio.io/client/mc/release/linux-amd64/mc
+    chmod +x /opt/app-root/minio/mc
+    mkdir /opt/app-root/src/bin
+    ln -s /opt/app-root/minio/mc /opt/app-root/src/bin/mc
+    rm -f mongodb-linux-x86_64-3.6.3.tar
 else
     echo "ERROR: Failed assembling - $rc"
 fi
