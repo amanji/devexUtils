@@ -45,3 +45,62 @@ This utility requires the following dependencies:
 Run `npm install && npm start` if node modules are not installed, otherwise run `npm start`.
 
 _For correspondence please email akiff.manji@gmail.com. or tag @amanji on GitHub_
+
+## Replaced Fields
+
+The following list indicates collections and the fields within them that are either replaced with a dummy placeholder, a default value or are completely removed (ie. set to '').
+
+* 'opportunities'
+    * 'proposalEmail': 'bcdevelopersexchange@gmail.com'
+* 'orgs'
+    * 'name': `dummy placeholder`
+    * 'dba': `dummy placeholder`
+    * 'address': `dummy placeholder`
+    * 'address2': `dummy placeholder`
+    * 'city': `dummy placeholder`
+    * 'province': 'BC'
+    * 'postalcode': '1A1 A1A'
+    * 'fullAddress': `dummy placeholder`
+    * 'contactName': `dummy placeholder`
+    * 'contactEmail': 'bcdevelopersexchange@gmail.com'
+    * 'contactPhone': `dummy placeholder`
+    * 'website': ''
+    * 'orgImageURL': ''
+* 'profiles'
+    * 'github': ''
+    * 'stackOverflow': ''
+    * 'stackExchange': ''
+    * 'linkedIn': ''
+    * 'website': ''
+* 'programs'
+    * 'owner': ''
+* 'proposals'
+    * 'businessName': `dummy placeholder`
+    * 'businessAddress': `dummy placeholder`
+    * 'businessContactName': `dummy placeholder`
+    * 'businessContactEmail': `dummy placeholder`
+    * 'businessContactPhone': `dummy placeholder`
+* 'users'
+    * 'firstName': `dummy placeholder`
+    * 'lastName': `dummy placeholder`
+    * 'displayName': `dummy placeholder`
+    * 'username': `dummy placeholder`
+    * 'email': 'bcdevelopersexchange@gmail.com'
+    * 'address': `dummy placeholder`
+    * 'phone': `dummy placeholder`
+    * 'businessAddress2': `dummy placeholder`
+    * 'businessCity': `dummy placeholder`
+    * 'businessProvince': 'BC'
+    * 'businessCode': ''
+    * 'profileImageURL': ''
+    * 'providerData': '
+    * 'businessName': `dummy placeholder`
+    * 'businessAddress': `dummy placeholder`
+    * 'businessContactName': `dummy placeholder`
+    * 'businessContactEmail': `dummy placeholder`
+    * 'businessContactPhone': `dummy placeholder`
+    * 'github': ''
+    * 'stackOverflow': ''
+    * 'stackExchange': ''
+    * 'linkedIn': ''
+    * 'website': ''
