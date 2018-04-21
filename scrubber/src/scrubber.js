@@ -94,7 +94,7 @@ const generateUserInfo = function() {
         'firstName': firstName,
         'lastName': lastName,
         'displayName': `${firstName} ${lastName}`,
-        'username': faker.internet.userName(),
+        'username': uniqueUserName(),
         'email': uniqueDefaultEmail(),
         'address': faker.address.streetAddress(),
         'phone': faker.phone.phoneNumber(),
@@ -128,7 +128,7 @@ const uniqueFirstName = (() => {
         };
         _firstNames.add(_firstName);
         return _firstName;
-    }
+    };
 })();
 
 const uniqueLastName = (() => {
@@ -140,7 +140,19 @@ const uniqueLastName = (() => {
         };
         _lastNames.add(_lastName);
         return _lastName;
-    }
+    };
+})();
+
+const uniqueUserName = (() => {
+    const _userNames = new Set();
+    return () => {
+        let _userName = faker.internet.userName();
+        while(_userNames.has(_userName)) {
+            _userName = faker.internet.userName();
+        };
+        _userNames.add(_userName);
+        return _userName;
+    };
 })();
 
 /**
