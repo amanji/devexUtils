@@ -31,7 +31,7 @@ const collectionWhitelist = [
 const removableFields = {
     'opportunities': () => {
         return {
-            'proposalEmail': defaultEmail()
+            'proposalEmail': uniqueDefaultEmail()
         };
     },
     'orgs': () => generateOrgInfo(),
@@ -45,6 +45,9 @@ const removableFields = {
     'users': () => generateUserInfo()
 };
 
+/**
+ * Helper functions for replacing sensitive data fields.
+ */
 const generateOrgInfo = function() {
     const address = faker.address.streetAddress();
     return {
@@ -57,7 +60,7 @@ const generateOrgInfo = function() {
         'postalcode': '1A1 A1A',
         'fullAddress': address,
         'contactName': faker.name.findName(),
-        'contactEmail': defaultEmail(),
+        'contactEmail': uniqueDefaultEmail(),
         'contactPhone': faker.phone.phoneNumber(),
         'website': '',
         'orgImageURL': ''
@@ -79,20 +82,20 @@ const generateBusinessInfo = function() {
         'businessName': faker.company.companyName(),
         'businessAddress': faker.address.streetAddress(),
         'businessContactName': faker.name.findName(),
-        'businessContactEmail': defaultEmail(),
+        'businessContactEmail': uniqueDefaultEmail(),
         'businessContactPhone': faker.phone.phoneNumber()
     };
 };
 
 const generateUserInfo = function() {
-    const firstName = faker.name.firstName();
-    const lastName = faker.name.lastName();
+    const firstName = uniqueFirstName();
+    const lastName = uniqueLastName();
     return Object.assign({
         'firstName': firstName,
         'lastName': lastName,
         'displayName': `${firstName} ${lastName}`,
         'username': faker.internet.userName(),
-        'email': defaultEmail(),
+        'email': uniqueDefaultEmail(),
         'address': faker.address.streetAddress(),
         'phone': faker.phone.phoneNumber(),
         'businessAddress2': faker.address.secondaryAddress(),
@@ -104,24 +107,41 @@ const generateUserInfo = function() {
     }, generateBusinessInfo(), generateOnlineProfileInfo());
 };
 
-const defaultEmail = (function() {
+/**
+ * Helper functions for generating unique field values.
+ */
+const uniqueDefaultEmail = (() => {
     let count = 0;
-    return function() {
+    return () => {
         const email = `bcdevelopersexchange${count ? '+' + count : ''}@gmail.com`;
         ++count;
         return email;
     };
 })();
 
-/**
-* Collections with indexes that need to be dropped.
-*/
-const indexes = {
-    'users': {
-        'email': { unique: true },
-        'username': { unique: true }
+const uniqueFirstName = (() => {
+    const _firstNames = new Set();
+    return () => {
+        let _firstName = faker.name.firstName();
+        while(_firstNames.has(_firstName)) {
+            _firstName = faker.name.firstName();
+        };
+        _firstNames.add(_firstName);
+        return _firstName;
     }
-};
+})();
+
+const uniqueLastName = (() => {
+    const _lastNames = new Set();
+    return () => {
+        let _lastName = faker.name.lastName();
+        while(_lastNames.has(_lastName)) {
+            _lastName = faker.name.lastName();
+        };
+        _lastNames.add(_lastName);
+        return _lastName;
+    }
+})();
 
 /**
  * Connects to a Mongo DB.
@@ -176,48 +196,74 @@ const scrubDB = function(collections) {
 
     return sensitiveCollections.reduce((sequence, collection) => {
         return sequence.then(() => {
-            if (indexes.hasOwnProperty(collection.collectionName)) {
+            return new Promise((resolve, reject) => {
+
+                const getReplacementsForCollection = (collection) => {
+                    const replacementFn = removableFields[collection.collectionName];
+                    if (typeof replacementFn === 'function') {
+                        return replacementFn();
+                    }
+                    return {};
+                }
+
+                const replacements = getReplacementsForCollection(collection);
+                const removableFieldNames = Object.keys(replacements) || [];
 
                 /**
-                 * TODO: Need to figure out a better way to deal with overwriting unique indexes.
-                 * For now simply dropping the indexes so that an empty string value can be written.
+                 * Setup filter query for updateMany
                  */
-                return collection.dropIndexes();
-            } else {
-                return Promise.resolve();
-            }
-        })
-        .then(() => {
-            const replacements = removableFields[collection.collectionName]() || {};
-            const removableFieldNames = Object.keys(replacements) || [];
-            /**
-             * Setup filter query for updateMany
-             */
-            const existsOrQuery = removableFieldNames.map(field => {
-                return { [field] : { $exists: true} };
-            });
-
-            let filterQuery = { $or: existsOrQuery };
-            if (collection.collectionName === 'users') {
-                const notQuery = ['admin', 'dev', 'gov', 'user'].map(username => {
-                    return { 'username': { $ne: username } };
+                const existsOrQuery = removableFieldNames.map(field => {
+                    return { [field] : { $exists: true} };
                 });
-                filterQuery.$and = notQuery;
-            }
 
-            /**
-             * Setup update obects for updateMany
-             */
-            const updateParameters = removableFieldNames
-                .reduce((updates, field) => {
-                    updates[field] = replacements[field] || '';
-                    return updates;
-                }, {});
+                const filterQuery = { $or: existsOrQuery };
+                if (collection.collectionName === 'users') {
+                    const notQuery = ['admin', 'dev', 'gov', 'user'].map(username => {
+                        return { 'username': { $ne: username } };
+                    });
+                    filterQuery.$and = notQuery;
+                }
 
-            /**
-            * Attempt updateMany
-            */
-            return collection.updateMany(filterQuery, { $set: updateParameters });
+                const bulkWriteQueries = [];
+                const stream = collection.find(filterQuery).stream();
+
+                stream.on('data', function(document) {
+                    const replacements = getReplacementsForCollection(collection);
+                    const removableFieldNames = Object.keys(replacements) || [];
+
+                    /**
+                    * Setup update obects for updateMany
+                    */
+                    const updateParameters = removableFieldNames
+                        .reduce((updates, field) => {
+                            updates[field] = replacements[field] || '';
+                            return updates;
+                        }, {});
+
+                    const bulkWriteQuery = {
+                        updateOne: {
+                            filter: { _id : document._id },
+                            update: { $set: updateParameters }
+                        }
+                    };
+
+                    bulkWriteQueries.push(bulkWriteQuery);
+                });
+
+                stream.on('error', function(err) {
+                    return reject(err);
+                });
+
+                stream.on('end', function() {
+                    return resolve(bulkWriteQueries);
+                });
+
+            }).then(function(operations) {
+                /**
+                * Attempt updateMany
+                */
+                return collection.bulkWrite(operations);
+            })
         }).then(result => {
             console.log(chalk.green(
                 `Found ${result.matchedCount} entries in ${collection.collectionName} with sensitive fields \
