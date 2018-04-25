@@ -120,37 +120,46 @@ const uniqueDefaultEmail = (() => {
 })();
 
 const uniqueFirstName = (() => {
+    let count = 0;
     const _firstNames = new Set();
     return () => {
         let _firstName = faker.name.firstName();
-        while(_firstNames.has(_firstName)) {
-            _firstName = faker.name.firstName();
-        };
-        _firstNames.add(_firstName);
+        if (_firstNames.has(_firstName)) {
+            _firstName = `${faker.name.firstName()}${count || ''}`;
+            ++count;
+        } else {
+            _firstNames.add(_firstName);
+        }
         return _firstName;
     };
 })();
 
 const uniqueLastName = (() => {
+    let count = 0;
     const _lastNames = new Set();
     return () => {
         let _lastName = faker.name.lastName();
-        while(_lastNames.has(_lastName)) {
-            _lastName = faker.name.lastName();
-        };
-        _lastNames.add(_lastName);
+        if (_lastNames.has(_lastName)) {
+            _lastName = `${faker.name.lastName()}${count || ''}`;
+            ++count;
+        } else {
+            _lastNames.add(_lastName);
+        }
         return _lastName;
     };
 })();
 
 const uniqueUserName = (() => {
+    let count = 0;
     const _userNames = new Set();
     return () => {
         let _userName = faker.internet.userName();
-        while(_userNames.has(_userName)) {
-            _userName = faker.internet.userName();
-        };
-        _userNames.add(_userName);
+        if (_userNames.has(_userName)) {
+            _userName = `${faker.internet.userName()}${count || ''}`;
+            ++count;
+        } else {
+            _userNames.add(_userName);
+        }
         return _userName;
     };
 })();

@@ -11,6 +11,7 @@ const exportDB = function(src) {
         '--host', src.db.hostname,
         '--port', src.db.port,
         '--db', src.db.name,
+        '--excludeCollection', 'sessions',
         '--out', '/tmp',
         '--gzip'
     ];
